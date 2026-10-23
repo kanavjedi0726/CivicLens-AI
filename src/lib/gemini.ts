@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import type { GeminiAnalysis } from './types';
+import { validateGeminiAnalysis } from './triage';
 
 const MODEL = process.env.GEMINI_MODEL ?? 'gemini-2.5-flash';
 
@@ -87,26 +88,12 @@ Return ONLY valid JSON matching the provided schema. Do not include any explanat
     throw new Error('Gemini returned an empty response.');
   }
 
-  let parsed: GeminiAnalysis;
+  let parsed: unknown;
   try {
-    parsed = JSON.parse(text) as GeminiAnalysis;
+    parsed = JSON.parse(text);
   } catch {
     throw new Error(`Gemini returned invalid JSON: ${text.slice(0, 200)}`);
   }
 
-  // Validate required fields
-  const required: (keyof GeminiAnalysis)[] = [
-    'category', 'title', 'summary', 'urgency',
-    'suggestedDepartment', 'recommendedAction', 'keyEvidence',
-  ];
-  for (const field of required) {
-    if (parsed[field] === undefined || parsed[field] === null) {
-      throw new Error(`Gemini response missing required field: "${field}"`);
-    }
-  }
-
-  // Normalise optional nullable field
-  if (!parsed.extractedLocation) parsed.extractedLocation = userLocation;
-
-  return parsed;
+  return validateGeminiAnalysis(parsed, userLocation);
 }

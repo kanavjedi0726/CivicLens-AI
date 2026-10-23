@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CivicReport, ReportStatus, Urgency, Category } from '@/lib/types';
 import { SAMPLE_REPORTS } from '@/lib/sampleReports';
+import { urgencyOrder } from '@/lib/triage';
 
 // ─── Constants & Helpers ─────────────────────────────────────────────────────
 
@@ -52,10 +53,6 @@ const URGENCY_LABELS: Record<Urgency, string> = {
   high: '● High',
   critical: '● Critical',
 };
-
-function urgencyOrder(u: Urgency) {
-  return { critical: 0, high: 1, medium: 2, low: 3 }[u] ?? 99;
-}
 
 function formatDate(iso: string) {
   try {
@@ -754,6 +751,7 @@ export default function DashboardPage() {
 
   // Hydrate from localStorage
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setReports(loadReports());
     setHydrated(true);
   }, []);
