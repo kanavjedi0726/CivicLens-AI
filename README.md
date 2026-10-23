@@ -74,19 +74,28 @@ The API key is read exclusively on the server (`src/app/api/reports/route.ts`) a
 
 ## 📁 Project Structure
 
-```
+```text
 src/
 ├── app/
-│   ├── api/reports/route.ts   # Server-side Gemini API endpoint
-│   ├── globals.css            # Full design system (tokens, components)
-│   ├── layout.tsx
-│   └── page.tsx               # Dashboard (all UI components)
+│   ├── api/
+│   │   └── reports/
+│   │       ├── route.ts                 # Server-side Gemini API endpoint
+│   │       └── __tests__/
+│   │           └── route.test.ts        # API route tests
+│   ├── globals.css                      # Design system and styling
+│   ├── layout.tsx                       # Root application layout
+│   └── page.tsx                         # Main dashboard and UI
 └── lib/
-    ├── types.ts               # Shared TypeScript types
-    ├── gemini.ts              # Gemini integration with structured output
-    ├── duplicates.ts          # Token-overlap duplicate detection
-    └── sampleReports.ts       # Demo data
+    ├── types.ts                         # Shared TypeScript types
+    ├── gemini.ts                        # Gemini integration and response validation
+    ├── triage.ts                        # Validation, prioritisation, and dashboard logic
+    ├── duplicates.ts                    # Duplicate detection engine
+    ├── sampleReports.ts                 # Demo data
+    └── __tests__/
+        ├── duplicates.test.ts           # Duplicate detection tests
+        └── triage.test.ts               # Triage logic tests
 ```
+
 
 ---
 
@@ -107,6 +116,27 @@ src/
 npm run build     # Full type check + production build
 npm run lint      # ESLint
 ```
+## 🧪 Automated Tests
+
+CivicLens AI includes automated tests using Node.js's built-in test runner (`node:test`) with `tsx` for TypeScript execution.
+
+- **32 automated tests** across 8 test suites.
+- Input validation and Gemini response schema validation.
+- Urgency prioritisation, report filtering, and dashboard statistics.
+- Duplicate detection and API route error handling.
+- Tests use deterministic inputs and do not require live Gemini API calls.
+
+Run the tests:
+
+```bash
+npm test
+npm run lint
+npm run build
+```
+
+All three commands passed locally during verification.
+
+
 
 ---
 
