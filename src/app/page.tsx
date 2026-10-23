@@ -28,15 +28,15 @@ function saveReports(reports: CivicReport[]) {
 }
 
 const CATEGORY_LABELS: Record<Category, string> = {
-  pothole: '🕳️ Pothole',
+  pothole: '🕳️ Potholes',
   garbage: '🗑️ Garbage',
   water_leak: '💧 Water Leak',
-  streetlight: '💡 Streetlight',
+  streetlight: '💡 Streetlights',
   road_safety: '⚠️ Road Safety',
   vandalism: '🚧 Vandalism',
   flooding: '🌊 Flooding',
   noise: '🔊 Noise',
-  other: '📋 Other',
+  other: '📋 General Civic',
 };
 
 const STATUS_LABELS: Record<ReportStatus, string> = {
@@ -62,7 +62,6 @@ function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     });
@@ -77,25 +76,38 @@ function StatCard({
   value,
   label,
   sublabel,
-  icon,
+  iconSvg,
   accentColor,
+  iconBg,
+  iconBorder,
 }: {
   value: number;
   label: string;
   sublabel: string;
-  icon: string;
+  iconSvg: React.ReactNode;
   accentColor: string;
+  iconBg: string;
+  iconBorder: string;
 }) {
   return (
     <div className="stat-card fade-in">
       <div className="stat-header">
         <span className="stat-label">{label}</span>
-        <span className="stat-icon-wrap" aria-hidden="true">{icon}</span>
+        <div
+          className="stat-icon-wrap"
+          style={{ background: iconBg, borderColor: iconBorder }}
+          aria-hidden="true"
+        >
+          {iconSvg}
+        </div>
       </div>
       <div className="stat-value" style={{ color: accentColor }}>
         {value}
       </div>
-      <div className="stat-desc">{sublabel}</div>
+      <div className="stat-desc">
+        <span className="stat-desc-dot" style={{ background: accentColor }} />
+        <span>{sublabel}</span>
+      </div>
     </div>
   );
 }
@@ -184,13 +196,13 @@ function SubmitForm({
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal-content">
-        <div className="modal-header">
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
-            <h2 className="modal-title font-display">
-              Submit Civic Incident
+            <h2 className="font-display" style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-primary)' }}>
+              Submit Civic Incident Report
             </h2>
-            <p className="modal-subtitle">
-              Describe the community issue in plain words — Gemini AI will analyse, prioritize, and route it.
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+              Enter community observations in plain text. Gemini AI will classify, prioritize, and route the ticket.
             </p>
           </div>
           <button
@@ -211,7 +223,7 @@ function SubmitForm({
             <textarea
               id="description"
               className="textarea"
-              placeholder="Describe what happened, the severity, exact location landmarks, and potential public risks..."
+              placeholder="Describe what occurred, hazards observed, affected infrastructure, and severity..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               style={{ minHeight: 130 }}
@@ -234,12 +246,12 @@ function SubmitForm({
               id="location"
               type="text"
               className="input"
-              placeholder="e.g. Corner of Main St & Oak Ave, outside the library"
+              placeholder="e.g. Corner of Main St & Oak Ave, near municipal library"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               disabled={loading}
             />
-            <span className="form-hint">Gemini will also extract street addresses directly from the description text.</span>
+            <span className="form-hint">Gemini AI also extracts addresses and landmarks directly from your report narrative.</span>
           </div>
 
           {error && (
@@ -255,7 +267,7 @@ function SubmitForm({
               className="btn btn-amber btn-sm"
               onClick={loadSample}
               disabled={loading}
-              title="Load sample citizen description to test quickly"
+              title="Load sample citizen report"
             >
               ⚡ Insert Example
             </button>
@@ -290,7 +302,7 @@ function SubmitForm({
   );
 }
 
-// ─── Report Detail Modal ─────────────────────────────────────────────────────
+// ─── Report Detail Modal (Inspired by Stitch Exploration) ────────────────────
 
 function ReportDetail({
   report,
@@ -309,164 +321,339 @@ function ReportDetail({
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-content">
-        {/* Header */}
-        <div className="modal-header">
-          <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
-              {report.isDemo && <span className="badge badge-demo">DEMO</span>}
-              {report.isUnanalysed && <span className="badge badge-unanalysed">UNANALYSED</span>}
-              {report.analysis && <CategoryTag category={report.analysis.category} />}
-              {report.analysis && <UrgencyBadge urgency={report.analysis.urgency} />}
-              <StatusBadge status={report.status} />
-            </div>
-            <h2 className="modal-title font-display">
-              {report.analysis?.title ?? 'Unanalysed Incident Report'}
-            </h2>
-            <p className="modal-subtitle">
-              Reference: <code style={{ color: 'var(--teal-300)', fontFamily: 'monospace' }}>{report.id}</code> · Logged {formatDate(report.createdAt)}
-            </p>
+      <div className="modal-content modal-content-wide">
+        {/* Top Breadcrumb & Status Navigation */}
+        <div className="details-top-bar">
+          <div className="details-breadcrumb">
+            <button className="breadcrumb-back-btn" onClick={onClose}>
+              ← Queue
+            </button>
+            <span className="breadcrumb-sep">/</span>
+            <span className="breadcrumb-ticket">TICKET #{report.id}</span>
+            <span className="breadcrumb-sep">/</span>
+            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+              {report.analysis?.title ?? 'Incident Record'}
+            </span>
           </div>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={onClose}
-            aria-label="Close modal"
-            style={{ fontSize: 16, padding: '4px 8px', flexShrink: 0 }}
-          >
-            ✕
-          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {report.isDemo && <span className="badge badge-demo">DEMO</span>}
+            {report.analysis && <CategoryTag category={report.analysis.category} />}
+            {report.analysis && <UrgencyBadge urgency={report.analysis.urgency} />}
+            <StatusBadge status={report.status} />
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={onClose}
+              aria-label="Close modal"
+              style={{ fontSize: 16, padding: '4px 8px', marginLeft: 4 }}
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
-        {/* Analysis failure alert if applicable */}
+        {/* AI Failure Alert if Applicable */}
         {report.analysisError && (
           <div className="alert alert-warning">
             <span>⚠️</span>
             <div>
-              <strong>Gemini Analysis Notice:</strong> {report.analysisError}
+              <strong>Gemini AI Notice:</strong> {report.analysisError}
             </div>
           </div>
         )}
 
-        {/* AI Intelligence Panel */}
-        {report.analysis && (
-          <div className="ai-intelligence-panel">
-            <div className="modal-section-title" style={{ color: 'var(--teal-400)' }}>
-              <span>✦</span>
-              <span>Gemini AI Incident Assessment</span>
+        {/* Two-Column Grid Layout (Stitch Image 2 & 3 Pattern) */}
+        <div className="details-grid">
+          {/* Left Column: Ground Data & Citizen Intake */}
+          <div className="details-column">
+            {/* Primary Critical Dispatch Header Block */}
+            <div className="dispatch-hero-block">
+              <div className="dispatch-micro-tag">
+                PRIMARY DISPATCH · TRIAGE TICKET #{report.id}
+              </div>
+              <h2 className="dispatch-main-title font-display">
+                {report.analysis?.title ?? 'Unanalysed Incident Report'}
+              </h2>
+              <div className="dispatch-meta-strip">
+                <span>👤 Citizen Inbound Intake</span>
+                <span>·</span>
+                <span>📍 {report.analysis?.extractedLocation ?? report.location ?? 'Location unassigned'}</span>
+                <span>·</span>
+                <span>🕒 Logged: {formatDate(report.createdAt)}</span>
+              </div>
             </div>
 
-            {/* AI Summary */}
-            <div>
-              <div className="ai-meta-label">Incident Summary</div>
-              <p className="ai-summary-text">{report.analysis.summary}</p>
-            </div>
+            {/* Extracted Spatial Landmark Card */}
+            <div className="stitch-card">
+              <div className="stitch-card-header">
+                <div className="stitch-card-title-group">
+                  <div className="stitch-card-icon-box">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="stitch-card-title">Extracted Spatial Landmark</div>
+                  </div>
+                </div>
+                <span className="stitch-card-badge">Resolved via Gemini</span>
+              </div>
 
-            {/* Department & Location metadata */}
-            <div className="ai-meta-grid">
-              <div className="ai-meta-item">
-                <div className="ai-meta-label">Assigned Department</div>
-                <div className="ai-meta-val">
-                  🏛️ {report.analysis.suggestedDepartment}
+              <div className="spatial-anchor-grid">
+                <div className="spatial-meta-item">
+                  <span className="spatial-meta-label">TARGET LOCATION</span>
+                  <span className="spatial-meta-val">
+                    {report.analysis?.extractedLocation ?? report.location ?? 'No address extracted'}
+                  </span>
+                </div>
+                <div className="spatial-meta-item">
+                  <span className="spatial-meta-label">REPORT CONTEXT</span>
+                  <span className="spatial-meta-val">
+                    {report.location ? `Landmark: ${report.location}` : 'Extracted from description text'}
+                  </span>
                 </div>
               </div>
-              <div className="ai-meta-item">
-                <div className="ai-meta-label">Extracted Location</div>
-                <div className="ai-meta-val">
-                  📍 {report.analysis.extractedLocation ?? report.location ?? 'None specified'}
+            </div>
+
+            {/* Original Citizen Field Report Card */}
+            <div className="stitch-card">
+              <div className="stitch-card-header">
+                <div className="stitch-card-title-group">
+                  <div className="stitch-card-icon-box">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="stitch-card-title">Original Citizen Field Report</div>
+                  </div>
                 </div>
+                <span className="stitch-card-badge">Raw Inbound Intact</span>
               </div>
+
+              <div className="citizen-quote-box">
+                &ldquo;{report.rawDescription}&rdquo;
+              </div>
+
+              {report.location && (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>📍 Citizen noted location:</span>
+                  <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{report.location}</span>
+                </div>
+              )}
             </div>
 
-            {/* Highlighted Recommended Action */}
-            <div className="recommended-action-box">
-              <div className="recommended-action-header">
-                <span>⚡</span>
-                <span>Recommended Municipal Action</span>
-              </div>
-              <p className="recommended-action-body">
-                {report.analysis.recommendedAction}
-              </p>
-            </div>
+            {/* Duplicate Detection Card (if duplicates exist) */}
+            {duplicates.length > 0 && (
+              <div className="stitch-card" style={{ borderColor: 'var(--coral-border)' }}>
+                <div className="stitch-card-header">
+                  <div className="stitch-card-title-group">
+                    <div className="stitch-card-icon-box" style={{ background: 'var(--coral-bg)', borderColor: 'var(--coral-border)', color: '#f87171' }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="6" y1="3" x2="6" y2="15" />
+                        <circle cx="18" cy="6" r="3" />
+                        <circle cx="6" cy="18" r="3" />
+                        <path d="M18 9a9 9 0 0 1-9 9" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="stitch-card-title" style={{ color: '#fca5a5' }}>
+                        Duplicate Detection &amp; Spatial Grouping
+                      </div>
+                    </div>
+                  </div>
+                  <span className="stitch-card-badge" style={{ background: 'var(--coral-bg)', color: '#fca5a5' }}>
+                    Advisory Cluster ({duplicates.length})
+                  </span>
+                </div>
 
-            {/* Key Evidence */}
-            {report.analysis.keyEvidence.length > 0 && (
-              <div>
-                <div className="ai-meta-label" style={{ marginBottom: 6 }}>Key Supporting Evidence</div>
-                <ul className="evidence-list">
-                  {report.analysis.keyEvidence.map((e, i) => (
-                    <li key={i} className="evidence-item">
-                      <span className="evidence-dot" />
-                      <span>{e}</span>
+                <ul style={{ paddingLeft: 18, fontSize: 12.5, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+                  {duplicates.map((d) => (
+                    <li key={d.id} style={{ marginTop: 4 }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {d.analysis?.title ?? d.rawDescription.slice(0, 50) + '…'}
+                      </span>{' '}
+                      <span style={{ color: 'var(--text-muted)' }}>({d.id})</span>
                     </li>
                   ))}
                 </ul>
+                <p style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                  Advisory deduplication flagged to assist municipal operators in correlating related complaints.
+                </p>
               </div>
             )}
           </div>
-        )}
 
-        {/* Original Citizen Submission */}
-        <div className="modal-section">
-          <div className="modal-section-title">Citizen Submission</div>
-          <div className="original-report-box">
-            <p className="original-report-text">
-              &ldquo;{report.rawDescription}&rdquo;
-            </p>
-            {report.location && (
-              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span>📍 Citizen noted location:</span>
-                <span style={{ color: 'var(--text-secondary)' }}>{report.location}</span>
+          {/* Right Column: Gemini AI Triage, Recommended Protocol & Status Controls */}
+          <div className="details-column">
+            {/* Gemini AI Triage Card */}
+            {report.analysis && (
+              <div className="stitch-card">
+                <div className="stitch-card-header">
+                  <div className="stitch-card-title-group">
+                    <div className="stitch-card-icon-box">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 2l2.4 7.2L21 12l-6.6 2.8L12 22l-2.4-7.2L3 12l6.6-2.8z" />
+                      </svg>
+                    </div>
+                    <div className="stitch-card-title">Gemini AI Triage</div>
+                  </div>
+                  <span className="stitch-card-badge" style={{ color: 'var(--teal-300)' }}>Active Analysis</span>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-dim)', marginBottom: 4 }}>
+                    IDENTIFIED HAZARD CLASSIFICATION
+                  </div>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {CATEGORY_LABELS[report.analysis.category]}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-dim)', marginBottom: 4 }}>
+                    SYNTHESIZED HAZARD BRIEF
+                  </div>
+                  <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+                    {report.analysis.summary}
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--border-subtle)' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-dim)' }}>
+                    URGENCY RATING
+                  </span>
+                  <UrgencyBadge urgency={report.analysis.urgency} />
+                </div>
               </div>
             )}
-          </div>
-        </div>
 
-        {/* Duplicate suggestions */}
-        {duplicates.length > 0 && (
-          <div className="alert alert-warning">
-            <span>🔁</span>
-            <div style={{ flex: 1 }}>
-              <strong>Potential Duplicate Incidents ({duplicates.length})</strong>
-              <ul style={{ marginTop: 6, paddingLeft: 18, fontSize: 13, lineHeight: 1.5 }}>
-                {duplicates.map((d) => (
-                  <li key={d.id} style={{ marginTop: 3 }}>
-                    <span style={{ fontWeight: 600 }}>{d.analysis?.title ?? d.rawDescription.slice(0, 50) + '…'}</span>{' '}
-                    <span style={{ color: 'var(--text-muted)' }}>({d.id})</span>
-                  </li>
-                ))}
-              </ul>
-              <p style={{ fontSize: 11.5, marginTop: 6, color: 'var(--amber-300)', opacity: 0.9 }}>
-                Duplicate flagging is advisory to assist dispatchers in cross-referencing related tickets.
-              </p>
+            {/* Recommended Protocol Card */}
+            {report.analysis && (
+              <div className="stitch-card">
+                <div className="stitch-card-header">
+                  <div className="stitch-card-title-group">
+                    <div className="stitch-card-icon-box">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 11 12 14 22 4" />
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                      </svg>
+                    </div>
+                    <div className="stitch-card-title">Recommended Protocol</div>
+                  </div>
+                </div>
+
+                <div className="protocol-action-box">
+                  <div className="protocol-action-label">
+                    <span>⚡</span>
+                    <span>Action Protocol</span>
+                  </div>
+                  <p className="protocol-action-text">
+                    {report.analysis.recommendedAction}
+                  </p>
+                </div>
+
+                {report.analysis.keyEvidence.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-dim)', marginBottom: 6 }}>
+                      KEY DIAGNOSTIC EVIDENCE
+                    </div>
+                    <ul className="evidence-list">
+                      {report.analysis.keyEvidence.map((e, i) => (
+                        <li key={i} className="evidence-item">
+                          <span className="evidence-dot" />
+                          <span>{e}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Department Assignment Card */}
+            {report.analysis && (
+              <div className="stitch-card">
+                <div className="stitch-card-header">
+                  <div className="stitch-card-title-group">
+                    <div className="stitch-card-icon-box">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 9.5L12 3l9 6.5" />
+                        <path d="M4 10h16" />
+                        <path d="M6 10v7" />
+                        <path d="M10 10v7" />
+                        <path d="M14 10v7" />
+                        <path d="M18 10v7" />
+                        <path d="M3 17h18" />
+                      </svg>
+                    </div>
+                    <div className="stitch-card-title">Department Assignment</div>
+                  </div>
+                  <span className="stitch-card-badge" style={{ color: 'var(--teal-300)' }}>AUTO-ASSIGNED</span>
+                </div>
+
+                <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '10px 14px' }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-dim)', marginBottom: 2 }}>
+                    ACTIVE RESPONSIBLE AGENCY
+                  </div>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    🏛️ {report.analysis.suggestedDepartment}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Incident Status Controls Card (Image 3 Bottom-Right Pattern) */}
+            <div className="stitch-card">
+              <div className="stitch-card-header">
+                <div className="stitch-card-title-group">
+                  <div className="stitch-card-icon-box">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="4" y1="21" x2="4" y2="14" />
+                      <line x1="4" y1="10" x2="4" y2="3" />
+                      <line x1="12" y1="21" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12" y2="3" />
+                      <line x1="20" y1="21" x2="20" y2="16" />
+                      <line x1="20" y1="12" x2="20" y2="3" />
+                      <line x1="1" y1="14" x2="7" y2="14" />
+                      <line x1="9" y1="8" x2="15" y2="8" />
+                      <line x1="17" y1="16" x2="23" y2="16" />
+                    </svg>
+                  </div>
+                  <div className="stitch-card-title">Incident Status Controls</div>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-dim)', marginBottom: 8 }}>
+                  LIFECYCLE STAGE
+                </div>
+                <div className="lifecycle-controls-grid">
+                  {(['new', 'acknowledged', 'in_progress', 'resolved'] as ReportStatus[]).map((s) => (
+                    <button
+                      key={s}
+                      id={`status-btn-${s}`}
+                      className={`lifecycle-btn ${report.status === s ? 'active' : ''}`}
+                      onClick={() => {
+                        onStatusChange(report.id, s);
+                        onClose();
+                      }}
+                    >
+                      {STATUS_LABELS[s]}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
-        )}
-
-        {/* Status controls */}
-        <div className="status-controls-bar">
-          <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginRight: 4 }}>
-            Update Status:
-          </span>
-          {(['new', 'acknowledged', 'in_progress', 'resolved'] as ReportStatus[]).map((s) => (
-            <button
-              key={s}
-              id={`status-btn-${s}`}
-              className={`status-control-btn ${report.status === s ? 'active' : ''}`}
-              onClick={() => {
-                onStatusChange(report.id, s);
-                onClose();
-              }}
-            >
-              {STATUS_LABELS[s]}
-            </button>
-          ))}
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Report Card Component ───────────────────────────────────────────────────
+// ─── Report Card Component (Stitch Dashboard Grid) ───────────────────────────
 
 function ReportCard({ report, onClick }: { report: CivicReport; onClick: () => void }) {
   const urgencyClass = report.analysis ? `urgency-${report.analysis.urgency}` : '';
@@ -486,17 +673,17 @@ function ReportCard({ report, onClick }: { report: CivicReport; onClick: () => v
       }}
       aria-label={`View report ${report.id}`}
     >
-      {/* Urgency indicator strip */}
+      {/* Restrained urgency indicator bar on left */}
       {report.analysis && (
         <div className={`report-card-urgency-indicator ${urgencyClass}`} />
       )}
 
-      {/* Badges header */}
+      {/* Badges header row */}
       <div className="report-card-header">
         <div className="report-card-badges">
+          {report.analysis && <CategoryTag category={report.analysis.category} />}
           {report.isDemo && <span className="badge badge-demo">DEMO</span>}
           {report.isUnanalysed && <span className="badge badge-unanalysed">UNANALYSED</span>}
-          {report.analysis && <CategoryTag category={report.analysis.category} />}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {report.analysis && <UrgencyBadge urgency={report.analysis.urgency} />}
@@ -511,50 +698,40 @@ function ReportCard({ report, onClick }: { report: CivicReport; onClick: () => v
         )}
       </h3>
 
-      {/* Summary */}
+      {/* Summary excerpt */}
       {report.analysis?.summary && (
         <p className="report-card-summary">
           {report.analysis.summary}
         </p>
       )}
 
+      {/* Potential duplicate detection callout if flagged */}
+      {report.duplicateSuggestions.length > 0 && (
+        <div className="duplicate-callout-box">
+          <span aria-hidden="true">🗩</span>
+          <span>{report.duplicateSuggestions.length} potential duplicate detected</span>
+        </div>
+      )}
+
       {/* Suggested department micro-tag */}
       {report.analysis?.suggestedDepartment && (
-        <div style={{ marginBottom: 10 }}>
-          <span style={{
-            fontSize: 11,
-            color: 'var(--teal-300)',
-            background: 'rgba(20, 184, 166, 0.08)',
-            padding: '2px 8px',
-            borderRadius: 'var(--radius-xs)',
-            fontWeight: 500,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-          }}>
+        <div>
+          <span className="agency-pill">
             🏛️ {report.analysis.suggestedDepartment}
           </span>
         </div>
       )}
 
-      {/* Footer metadata */}
+      {/* Card footer metadata */}
       <div className="report-card-meta">
         <span
           className="report-meta-location"
           title={report.analysis?.extractedLocation ?? report.location ?? 'No location specified'}
         >
-          📍 {report.analysis?.extractedLocation ?? report.location ?? 'Location not specified'}
+          📍 {report.analysis?.extractedLocation ?? report.location ?? 'Location unassigned'}
         </span>
         <span className="report-meta-date">{formatDate(report.createdAt)}</span>
       </div>
-
-      {/* Duplicate warning tag */}
-      {report.duplicateSuggestions.length > 0 && (
-        <div className="duplicate-flag">
-          <span>🔁</span>
-          <span>{report.duplicateSuggestions.length} potential duplicate{report.duplicateSuggestions.length > 1 ? 's' : ''} detected</span>
-        </div>
-      )}
     </article>
   );
 }
@@ -597,8 +774,8 @@ export default function DashboardPage() {
     setShowSubmit(false);
     showToast(
       report.analysisError
-        ? '⚠️ Report saved (AI analysis failed — see details)'
-        : '✅ Report submitted and analysed successfully!'
+        ? '⚠️ Report saved (AI analysis notice — review details)'
+        : '✅ Report submitted and triaged with Gemini!'
     );
     setSelectedReport(report);
   }, [showToast]);
@@ -619,7 +796,7 @@ export default function DashboardPage() {
     resolved: reports.filter((r) => r.status === 'resolved').length,
   }), [reports]);
 
-  // Filtered & sorted reports
+  // Filtered & sorted reports (critical first, then newest)
   const filteredReports = useMemo(() => {
     const filtered = reports.filter((r) => {
       const q = searchQuery.toLowerCase();
@@ -637,7 +814,6 @@ export default function DashboardPage() {
       return matchesSearch && matchesCategory && matchesUrgency && matchesStatus;
     });
 
-    // Sort: critical first, then newest
     filtered.sort((a, b) => {
       const ua = a.analysis ? urgencyOrder(a.analysis.urgency) : 5;
       const ub = b.analysis ? urgencyOrder(b.analysis.urgency) : 5;
@@ -652,27 +828,38 @@ export default function DashboardPage() {
 
   return (
     <>
-      {/* Compact Civic Header */}
+      {/* Refined Civic Header with Stitch Architecture Badge */}
       <header className="header">
         <div className="container header-inner">
           <div className="brand-wrapper">
-            <div className="brand-logo" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                <path d="M11 8v6M8 11h6" />
+            {/* Civic-building / grid-inspired geometric SVG logo */}
+            <div className="brand-logo-badge" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9.5L12 3l9 6.5" />
+                <path d="M4 10h16" />
+                <path d="M6 10v7" />
+                <path d="M10 10v7" />
+                <path d="M14 10v7" />
+                <path d="M18 10v7" />
+                <path d="M3 17h18" />
+                <path d="M2 20h20" />
               </svg>
             </div>
-            <div>
+            <div className="brand-text">
               <div className="brand-title">
                 <span>CivicLens</span>
                 <span className="brand-tag">AI</span>
               </div>
-              <div className="brand-sub">Municipal Incident Triage & Operations</div>
+              <div className="brand-sub">MUNICIPAL INCIDENT TRIAGE &amp; OPERATIONS</div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span className="header-view-pill">
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--teal-400)' }} />
+              Incident Triage
+            </span>
+
             <button
               id="load-sample-header-btn"
               className="btn btn-secondary btn-sm"
@@ -682,7 +869,7 @@ export default function DashboardPage() {
                   setReports((prev) => [...SAMPLE_REPORTS, ...prev.filter((r) => !r.isDemo)]);
                   showToast('📌 Demonstration dataset loaded!');
                 } else {
-                  showToast('ℹ️ Sample data is already loaded.');
+                  showToast('ℹ️ Demonstration dataset already loaded.');
                 }
               }}
             >
@@ -702,49 +889,95 @@ export default function DashboardPage() {
       {/* Main Workspace */}
       <main className="container" style={{ paddingBottom: 48, flex: 1 }}>
 
-        {/* Reduced, purposeful operational header strip */}
-        <section className="operational-strip" aria-label="Incident Triage Overview">
-          <div className="operational-info">
-            <h1 className="font-display">Incident Dispatch & Operational Intelligence</h1>
-            <p>Real-time citizen reporting intake, automated Gemini classification, and municipal routing.</p>
+        {/* Operational Center Strip (Google Stitch Reference Inspired) */}
+        <section className="operational-center-strip" aria-label="Incident Triage Overview">
+          <div className="operational-meta-tag">
+            <span>OPERATIONAL CENTER</span>
+            <span className="meta-dot">·</span>
+            <span>GEMINI 1.5 PRO ENGINE</span>
+            <span className="meta-dot">·</span>
+            <span className="meta-cluster">CLUSTER ID: MUNI-HQ-01</span>
           </div>
-          <div className="live-pill">
-            <span className="live-indicator" />
-            <span>Triage Live</span>
-            <span style={{ color: 'var(--border-default)' }}>|</span>
-            <span style={{ color: 'var(--text-secondary)' }}>{stats.unresolved} Pending Action</span>
+          <div className="operational-heading-row">
+            <div>
+              <h1 className="operational-title font-display">
+                Incident Dispatch &amp; Operational Intelligence
+              </h1>
+              <p className="operational-subtitle">
+                Real-time citizen reporting intake, automated Gemini classification, and municipal field routing.
+              </p>
+            </div>
+            <div className="operational-status-box">
+              <div className="status-box-header">
+                <span className="status-live-dot" />
+                <span>TRIAGE ACTIVE</span>
+              </div>
+              <div className="status-box-sub">
+                <strong>{stats.unresolved}</strong> Pending Action
+              </div>
+            </div>
           </div>
         </section>
 
-        {/* Summary Metrics */}
+        {/* Summary Metrics Cards */}
         <section className="stats-grid" aria-label="Incident Summary Metrics">
           <StatCard
             value={stats.total}
-            label="Total Incidents"
+            label="TOTAL INCIDENTS"
             sublabel="All logged civic records"
-            icon="📋"
             accentColor="#38bdf8"
+            iconBg="rgba(14, 165, 233, 0.12)"
+            iconBorder="rgba(14, 165, 233, 0.32)"
+            iconSvg={
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+              </svg>
+            }
           />
           <StatCard
             value={stats.unresolved}
-            label="Needs Action"
-            sublabel="Awaiting resolution"
-            icon="⏳"
+            label="NEEDS ACTION"
+            sublabel="Awaiting municipal resolution"
             accentColor="#fbbf24"
+            iconBg="rgba(245, 158, 11, 0.12)"
+            iconBorder="rgba(245, 158, 11, 0.32)"
+            iconSvg={
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 22h14M5 2h14M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />
+              </svg>
+            }
           />
           <StatCard
             value={stats.highPriority}
-            label="High / Critical"
+            label="HIGH / CRITICAL"
             sublabel="Immediate triage queue"
-            icon="⚠️"
             accentColor="#f87171"
+            iconBg="rgba(239, 68, 68, 0.12)"
+            iconBorder="rgba(239, 68, 68, 0.32)"
+            iconSvg={
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            }
           />
           <StatCard
             value={stats.resolved}
-            label="Resolved"
+            label="RESOLVED"
             sublabel="Completed interventions"
-            icon="✅"
             accentColor="#34d399"
+            iconBg="rgba(16, 185, 129, 0.12)"
+            iconBorder="rgba(16, 185, 129, 0.32)"
+            iconSvg={
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <polyline points="9 12 11 14 15 10" />
+              </svg>
+            }
           />
         </section>
 
@@ -849,7 +1082,21 @@ export default function DashboardPage() {
           )}
         </section>
 
-        {/* Reports Grid / Empty State */}
+        {/* Feed Stream Status Bar */}
+        <div className="feed-meta-bar">
+          <div className="feed-stream-indicator">
+            <span style={{ color: 'var(--teal-400)' }}>●</span>
+            <span>Showing {filteredReports.length} of {reports.length} incidents</span>
+            <span style={{ color: 'var(--text-dim)' }}>·</span>
+            <span style={{ color: 'var(--text-muted)' }}>Live citizen intake queue</span>
+          </div>
+          <div className="feed-sort-indicator">
+            <span>≡</span>
+            <span>Sort: Priority Rank (High to Low)</span>
+          </div>
+        </div>
+
+        {/* Reports Feed Grid / Empty State */}
         <section aria-label="Incident Reports Feed">
           {!hydrated ? (
             <div className="empty-state">
