@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CivicReport, ReportStatus, Urgency, Category } from '@/lib/types';
 import { SAMPLE_REPORTS } from '@/lib/sampleReports';
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Constants & Helpers ─────────────────────────────────────────────────────
 
 const STORAGE_KEY = 'civicLens_reports_v2';
 
@@ -22,7 +22,9 @@ function loadReports(): CivicReport[] {
 function saveReports(reports: CivicReport[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
-  } catch { /* quota full — ignore */ }
+  } catch {
+    /* ignore storage quota limits */
+  }
 }
 
 const CATEGORY_LABELS: Record<Category, string> = {
@@ -38,17 +40,17 @@ const CATEGORY_LABELS: Record<Category, string> = {
 };
 
 const STATUS_LABELS: Record<ReportStatus, string> = {
-  new: '🔵 New',
-  acknowledged: '🟡 Acknowledged',
-  in_progress: '🟢 In Progress',
-  resolved: '✅ Resolved',
+  new: '● New',
+  acknowledged: '● Acknowledged',
+  in_progress: '● In Progress',
+  resolved: '✓ Resolved',
 };
 
 const URGENCY_LABELS: Record<Urgency, string> = {
   low: '● Low',
   medium: '● Medium',
   high: '● High',
-  critical: '🔴 Critical',
+  critical: '● Critical',
 };
 
 function urgencyOrder(u: Urgency) {
@@ -56,39 +58,69 @@ function urgencyOrder(u: Urgency) {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  });
+  try {
+    return new Date(iso).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
+// ─── Micro UI Components ─────────────────────────────────────────────────────
 
-function StatCard({ value, label, icon, color }: {
-  value: number; label: string; icon: string; color: string;
+function StatCard({
+  value,
+  label,
+  sublabel,
+  icon,
+  accentColor,
+}: {
+  value: number;
+  label: string;
+  sublabel: string;
+  icon: string;
+  accentColor: string;
 }) {
   return (
     <div className="stat-card fade-in">
-      <div className="stat-icon">{icon}</div>
-      <div className="stat-value" style={{ color }}>{value}</div>
-      <div className="stat-label">{label}</div>
+      <div className="stat-header">
+        <span className="stat-label">{label}</span>
+        <span className="stat-icon-wrap" aria-hidden="true">{icon}</span>
+      </div>
+      <div className="stat-value" style={{ color: accentColor }}>
+        {value}
+      </div>
+      <div className="stat-desc">{sublabel}</div>
     </div>
   );
 }
 
 function UrgencyBadge({ urgency }: { urgency: Urgency }) {
-  return <span className={`badge badge-urgency-${urgency}`}>{URGENCY_LABELS[urgency]}</span>;
+  return (
+    <span className={`badge badge-urgency-${urgency}`}>
+      {URGENCY_LABELS[urgency]}
+    </span>
+  );
 }
 
 function StatusBadge({ status }: { status: ReportStatus }) {
-  return <span className={`badge badge-status-${status}`}>{STATUS_LABELS[status]}</span>;
+  return (
+    <span className={`badge badge-status-${status}`}>
+      {STATUS_LABELS[status]}
+    </span>
+  );
 }
 
 function CategoryTag({ category }: { category: Category }) {
   return <span className="tag">{CATEGORY_LABELS[category]}</span>;
 }
 
-// ─── Submission Form ─────────────────────────────────────────────────────────
+// ─── Submission Form Modal ───────────────────────────────────────────────────
 
 function SubmitForm({
   onSubmit,
@@ -105,7 +137,7 @@ function SubmitForm({
   const [error, setError] = useState<string | null>(null);
 
   const SAMPLE_DESCRIPTIONS = [
-    'There is a deep pothole on Victoria Road near the petrol station. It\'s about 40 cm deep and cars have been swerving to avoid it for over a week. Someone could get into an accident.',
+    'There is a deep pothole on Victoria Road near the petrol station. It is about 40 cm deep and cars have been swerving to avoid it for over a week. Someone could get into an accident.',
     'Garbage has not been collected on Maple Avenue for 12 days. Bags are piling up outside multiple houses, attracting rats and flies. The smell is terrible.',
     'The traffic light at the corner of High Street and Park Lane is stuck on red in one direction. Traffic is building up during rush hours.',
     'There is a significant water leak under the road on Church Street. Water is pooling and the tarmac is starting to crack. Looks like a burst pipe underground.',
@@ -142,7 +174,7 @@ function SubmitForm({
         return;
       }
       onSubmit(data.report as CivicReport);
-    } catch (err) {
+    } catch {
       setError('Network error — please check your connection and try again.');
     } finally {
       setLoading(false);
@@ -152,46 +184,62 @@ function SubmitForm({
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal-content">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <div className="modal-header">
           <div>
-            <h2 className="font-display" style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>
-              Submit Civic Report
+            <h2 className="modal-title font-display">
+              Submit Civic Incident
             </h2>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-              Describe the issue — Gemini AI will analyse and classify it automatically.
+            <p className="modal-subtitle">
+              Describe the community issue in plain words — Gemini AI will analyse, prioritize, and route it.
             </p>
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={onClose} style={{ fontSize: 18, padding: '6px 10px' }}>✕</button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={onClose}
+            aria-label="Close modal"
+            style={{ fontSize: 16, padding: '4px 8px' }}
+          >
+            ✕
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="form-group">
-            <label className="form-label" htmlFor="description">Issue Description *</label>
+            <label className="form-label" htmlFor="description">
+              Issue Description *
+            </label>
             <textarea
               id="description"
               className="textarea"
-              placeholder="Describe the civic issue in as much detail as possible — what, where, how severe, how long it has been going on..."
+              placeholder="Describe what happened, the severity, exact location landmarks, and potential public risks..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              style={{ minHeight: 140 }}
+              style={{ minHeight: 130 }}
               required
               disabled={loading}
             />
-            <span className="form-hint">{description.length} characters</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="form-hint">{description.length} characters</span>
+              {description.length > 0 && description.length < 10 && (
+                <span className="form-hint" style={{ color: 'var(--amber-400)' }}>At least 10 characters required</span>
+              )}
+            </div>
           </div>
 
           <div className="form-group">
-            <label className="form-label" htmlFor="location">Location (optional)</label>
+            <label className="form-label" htmlFor="location">
+              Location Landmark (Optional)
+            </label>
             <input
               id="location"
               type="text"
               className="input"
-              placeholder="e.g. Corner of Main St & Oak Ave, near the park"
+              placeholder="e.g. Corner of Main St & Oak Ave, outside the library"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               disabled={loading}
             />
-            <span className="form-hint">AI will also try to extract location from your description.</span>
+            <span className="form-hint">Gemini will also extract street addresses directly from the description text.</span>
           </div>
 
           {error && (
@@ -201,15 +249,15 @@ function SubmitForm({
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingTop: 4 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingTop: 6, alignItems: 'center' }}>
             <button
               type="button"
               className="btn btn-amber btn-sm"
               onClick={loadSample}
               disabled={loading}
-              title="Load a sample report to test immediately"
+              title="Load sample citizen description to test quickly"
             >
-              ⚡ Sample Report
+              ⚡ Insert Example
             </button>
             <button
               type="button"
@@ -228,11 +276,11 @@ function SubmitForm({
             >
               {loading ? (
                 <>
-                  <div className="spinner" style={{ width: 16, height: 16 }} />
-                  Analysing with Gemini…
+                  <div className="spinner" />
+                  <span>Analysing with Gemini…</span>
                 </>
               ) : (
-                '🚀 Submit & Analyse'
+                'Submit & Triage Report'
               )}
             </button>
           </div>
@@ -261,71 +309,94 @@ function ReportDetail({
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-content" style={{ maxWidth: 700 }}>
+      <div className="modal-content">
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, gap: 12 }}>
+        <div className="modal-header">
           <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-              {report.isDemo && <span className="badge badge-demo">📌 Demo Data</span>}
-              {report.isUnanalysed && <span className="badge" style={{ background: 'rgba(148,163,184,0.1)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>⚡ Unanalysed</span>}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
+              {report.isDemo && <span className="badge badge-demo">DEMO</span>}
+              {report.isUnanalysed && <span className="badge badge-unanalysed">UNANALYSED</span>}
               {report.analysis && <CategoryTag category={report.analysis.category} />}
               {report.analysis && <UrgencyBadge urgency={report.analysis.urgency} />}
               <StatusBadge status={report.status} />
             </div>
-            <h2 className="font-display" style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.3 }}>
-              {report.analysis?.title ?? 'Unanalysed Report'}
+            <h2 className="modal-title font-display">
+              {report.analysis?.title ?? 'Unanalysed Incident Report'}
             </h2>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-              ID: {report.id} · Submitted {formatDate(report.createdAt)}
+            <p className="modal-subtitle">
+              Reference: <code style={{ color: 'var(--teal-300)', fontFamily: 'monospace' }}>{report.id}</code> · Logged {formatDate(report.createdAt)}
             </p>
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={onClose} style={{ fontSize: 18, padding: '6px 10px', flexShrink: 0 }}>✕</button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={onClose}
+            aria-label="Close modal"
+            style={{ fontSize: 16, padding: '4px 8px', flexShrink: 0 }}
+          >
+            ✕
+          </button>
         </div>
 
-        <div className="divider" />
-
-        {/* Analysis error */}
+        {/* Analysis failure alert if applicable */}
         {report.analysisError && (
-          <div className="alert alert-warning" style={{ marginBottom: 20 }}>
+          <div className="alert alert-warning">
             <span>⚠️</span>
-            <span><strong>AI Analysis Failed:</strong> {report.analysisError}</span>
+            <div>
+              <strong>Gemini Analysis Notice:</strong> {report.analysisError}
+            </div>
           </div>
         )}
 
-        {/* Analysis */}
+        {/* AI Intelligence Panel */}
         {report.analysis && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 24 }}>
+          <div className="ai-intelligence-panel">
+            <div className="modal-section-title" style={{ color: 'var(--teal-400)' }}>
+              <span>✦</span>
+              <span>Gemini AI Incident Assessment</span>
+            </div>
+
+            {/* AI Summary */}
             <div>
-              <div className="section-heading">AI Summary</div>
-              <p style={{ fontSize: 14, lineHeight: 1.7, color: 'var(--text-secondary)' }}>{report.analysis.summary}</p>
+              <div className="ai-meta-label">Incident Summary</div>
+              <p className="ai-summary-text">{report.analysis.summary}</p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div className="card" style={{ padding: 16 }}>
-                <div className="section-heading">Suggested Department</div>
-                <p style={{ fontSize: 14, color: 'var(--text-primary)', fontWeight: 600 }}>{report.analysis.suggestedDepartment}</p>
+            {/* Department & Location metadata */}
+            <div className="ai-meta-grid">
+              <div className="ai-meta-item">
+                <div className="ai-meta-label">Assigned Department</div>
+                <div className="ai-meta-val">
+                  🏛️ {report.analysis.suggestedDepartment}
+                </div>
               </div>
-              <div className="card" style={{ padding: 16 }}>
-                <div className="section-heading">Extracted Location</div>
-                <p style={{ fontSize: 14, color: 'var(--text-primary)', fontWeight: 600 }}>
-                  {report.analysis.extractedLocation ?? report.location ?? '—'}
-                </p>
+              <div className="ai-meta-item">
+                <div className="ai-meta-label">Extracted Location</div>
+                <div className="ai-meta-val">
+                  📍 {report.analysis.extractedLocation ?? report.location ?? 'None specified'}
+                </div>
               </div>
             </div>
 
-            <div className="card" style={{ padding: 16 }}>
-              <div className="section-heading">Recommended Action</div>
-              <p style={{ fontSize: 14, color: 'var(--teal-300)', fontWeight: 500, lineHeight: 1.6 }}>{report.analysis.recommendedAction}</p>
+            {/* Highlighted Recommended Action */}
+            <div className="recommended-action-box">
+              <div className="recommended-action-header">
+                <span>⚡</span>
+                <span>Recommended Municipal Action</span>
+              </div>
+              <p className="recommended-action-body">
+                {report.analysis.recommendedAction}
+              </p>
             </div>
 
+            {/* Key Evidence */}
             {report.analysis.keyEvidence.length > 0 && (
               <div>
-                <div className="section-heading">Key Evidence</div>
+                <div className="ai-meta-label" style={{ marginBottom: 6 }}>Key Supporting Evidence</div>
                 <ul className="evidence-list">
                   {report.analysis.keyEvidence.map((e, i) => (
                     <li key={i} className="evidence-item">
                       <span className="evidence-dot" />
-                      {e}
+                      <span>{e}</span>
                     </li>
                   ))}
                 </ul>
@@ -334,52 +405,57 @@ function ReportDetail({
           </div>
         )}
 
-        {/* Raw description */}
-        <div style={{ marginBottom: 24 }}>
-          <div className="section-heading">Original Report</div>
-          <div className="card" style={{ padding: 16, background: 'var(--bg-elevated)' }}>
-            <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7, fontStyle: 'italic' }}>
-              "{report.rawDescription}"
+        {/* Original Citizen Submission */}
+        <div className="modal-section">
+          <div className="modal-section-title">Citizen Submission</div>
+          <div className="original-report-box">
+            <p className="original-report-text">
+              &ldquo;{report.rawDescription}&rdquo;
             </p>
             {report.location && (
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>📍 {report.location}</p>
+              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span>📍 Citizen noted location:</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{report.location}</span>
+              </div>
             )}
           </div>
         </div>
 
         {/* Duplicate suggestions */}
         {duplicates.length > 0 && (
-          <div style={{ marginBottom: 24 }}>
-            <div className="alert alert-warning">
-              <span>🔁</span>
-              <div>
-                <strong>Possible Duplicates Detected</strong>
-                <ul style={{ marginTop: 6, paddingLeft: 16, fontSize: 13 }}>
-                  {duplicates.map((d) => (
-                    <li key={d.id} style={{ marginTop: 4 }}>
-                      {d.analysis?.title ?? d.rawDescription.slice(0, 60) + '…'}{' '}
-                      <span style={{ color: 'var(--text-muted)' }}>({d.id.slice(0, 8)})</span>
-                    </li>
-                  ))}
-                </ul>
-                <p style={{ fontSize: 12, marginTop: 6, color: 'var(--text-muted)' }}>
-                  These are suggestions only — the report has been saved and can be investigated separately.
-                </p>
-              </div>
+          <div className="alert alert-warning">
+            <span>🔁</span>
+            <div style={{ flex: 1 }}>
+              <strong>Potential Duplicate Incidents ({duplicates.length})</strong>
+              <ul style={{ marginTop: 6, paddingLeft: 18, fontSize: 13, lineHeight: 1.5 }}>
+                {duplicates.map((d) => (
+                  <li key={d.id} style={{ marginTop: 3 }}>
+                    <span style={{ fontWeight: 600 }}>{d.analysis?.title ?? d.rawDescription.slice(0, 50) + '…'}</span>{' '}
+                    <span style={{ color: 'var(--text-muted)' }}>({d.id})</span>
+                  </li>
+                ))}
+              </ul>
+              <p style={{ fontSize: 11.5, marginTop: 6, color: 'var(--amber-300)', opacity: 0.9 }}>
+                Duplicate flagging is advisory to assist dispatchers in cross-referencing related tickets.
+              </p>
             </div>
           </div>
         )}
 
-        {/* Status update */}
-        <div className="divider" />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>Update Status:</span>
+        {/* Status controls */}
+        <div className="status-controls-bar">
+          <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginRight: 4 }}>
+            Update Status:
+          </span>
           {(['new', 'acknowledged', 'in_progress', 'resolved'] as ReportStatus[]).map((s) => (
             <button
               key={s}
               id={`status-btn-${s}`}
-              className={`btn btn-sm ${report.status === s ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => { onStatusChange(report.id, s); onClose(); }}
+              className={`status-control-btn ${report.status === s ? 'active' : ''}`}
+              onClick={() => {
+                onStatusChange(report.id, s);
+                onClose();
+              }}
             >
               {STATUS_LABELS[s]}
             </button>
@@ -390,67 +466,96 @@ function ReportDetail({
   );
 }
 
-// ─── Report Card ─────────────────────────────────────────────────────────────
+// ─── Report Card Component ───────────────────────────────────────────────────
 
 function ReportCard({ report, onClick }: { report: CivicReport; onClick: () => void }) {
-  const urgencyBorder: Record<Urgency, string> = {
-    low: '2px solid rgba(34,197,94,0.3)',
-    medium: '2px solid rgba(251,191,36,0.3)',
-    high: '2px solid rgba(249,115,22,0.4)',
-    critical: '2px solid rgba(239,68,68,0.5)',
-  };
+  const urgencyClass = report.analysis ? `urgency-${report.analysis.urgency}` : '';
 
   return (
-    <div
-      className="card card-interactive fade-in"
+    <article
+      className="report-card fade-in"
       onClick={onClick}
       id={`report-card-${report.id}`}
-      style={{
-        borderLeft: report.analysis ? urgencyBorder[report.analysis.urgency] : '2px solid var(--border)',
-        paddingLeft: 20,
+      tabIndex={0}
+      role="button"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
       }}
+      aria-label={`View report ${report.id}`}
     >
-      {/* Top row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          {report.isDemo && <span className="badge badge-demo" style={{ fontSize: '9px' }}>DEMO</span>}
+      {/* Urgency indicator strip */}
+      {report.analysis && (
+        <div className={`report-card-urgency-indicator ${urgencyClass}`} />
+      )}
+
+      {/* Badges header */}
+      <div className="report-card-header">
+        <div className="report-card-badges">
+          {report.isDemo && <span className="badge badge-demo">DEMO</span>}
+          {report.isUnanalysed && <span className="badge badge-unanalysed">UNANALYSED</span>}
           {report.analysis && <CategoryTag category={report.analysis.category} />}
-          {report.analysis && <UrgencyBadge urgency={report.analysis.urgency} />}
-          {report.isUnanalysed && (
-            <span className="badge" style={{ background: 'rgba(148,163,184,0.1)', color: 'var(--text-muted)', border: '1px solid var(--border)', fontSize: 9 }}>UNANALYSED</span>
-          )}
         </div>
-        <StatusBadge status={report.status} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {report.analysis && <UrgencyBadge urgency={report.analysis.urgency} />}
+          <StatusBadge status={report.status} />
+        </div>
       </div>
 
       {/* Title */}
-      <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.4, marginBottom: 6 }}>
-        {report.analysis?.title ?? <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Pending AI analysis…</span>}
+      <h3 className="report-card-title">
+        {report.analysis?.title ?? (
+          <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Pending AI analysis…</span>
+        )}
       </h3>
 
       {/* Summary */}
       {report.analysis?.summary && (
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 10, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+        <p className="report-card-summary">
           {report.analysis.summary}
         </p>
       )}
 
-      {/* Footer */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
-        <span>
-          {report.analysis?.extractedLocation ?? report.location
-            ? `📍 ${report.analysis?.extractedLocation ?? report.location}`
-            : '📍 No location'}
-        </span>
-        <span>{formatDate(report.createdAt)}</span>
-      </div>
-
-      {report.duplicateSuggestions.length > 0 && (
-        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--amber-400)' }}>
-          🔁 {report.duplicateSuggestions.length} possible duplicate{report.duplicateSuggestions.length > 1 ? 's' : ''} detected
+      {/* Suggested department micro-tag */}
+      {report.analysis?.suggestedDepartment && (
+        <div style={{ marginBottom: 10 }}>
+          <span style={{
+            fontSize: 11,
+            color: 'var(--teal-300)',
+            background: 'rgba(20, 184, 166, 0.08)',
+            padding: '2px 8px',
+            borderRadius: 'var(--radius-xs)',
+            fontWeight: 500,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+          }}>
+            🏛️ {report.analysis.suggestedDepartment}
+          </span>
         </div>
       )}
-    </div>
+
+      {/* Footer metadata */}
+      <div className="report-card-meta">
+        <span
+          className="report-meta-location"
+          title={report.analysis?.extractedLocation ?? report.location ?? 'No location specified'}
+        >
+          📍 {report.analysis?.extractedLocation ?? report.location ?? 'Location not specified'}
+        </span>
+        <span className="report-meta-date">{formatDate(report.createdAt)}</span>
+      </div>
+
+      {/* Duplicate warning tag */}
+      {report.duplicateSuggestions.length > 0 && (
+        <div className="duplicate-flag">
+          <span>🔁</span>
+          <span>{report.duplicateSuggestions.length} potential duplicate{report.duplicateSuggestions.length > 1 ? 's' : ''} detected</span>
+        </div>
+      )}
+    </article>
   );
 }
 
@@ -500,12 +605,13 @@ export default function DashboardPage() {
 
   const handleStatusChange = useCallback((id: string, status: ReportStatus) => {
     setReports((prev) =>
-      prev.map((r) => r.id === id ? { ...r, status, updatedAt: new Date().toISOString() } : r)
+      prev.map((r) => (r.id === id ? { ...r, status, updatedAt: new Date().toISOString() } : r))
     );
-    showToast(`Status updated to "${STATUS_LABELS[status].replace(/^[^\s]*\s/, '')}"`);
+    const labelClean = STATUS_LABELS[status].replace(/^[^\s]*\s/, '');
+    showToast(`Status updated to "${labelClean}"`);
   }, [showToast]);
 
-  // Stats
+  // Summary stats
   const stats = useMemo(() => ({
     total: reports.length,
     unresolved: reports.filter((r) => r.status !== 'resolved').length,
@@ -513,14 +619,15 @@ export default function DashboardPage() {
     resolved: reports.filter((r) => r.status === 'resolved').length,
   }), [reports]);
 
-  // Filtered & sorted
+  // Filtered & sorted reports
   const filteredReports = useMemo(() => {
-    let filtered = reports.filter((r) => {
+    const filtered = reports.filter((r) => {
       const q = searchQuery.toLowerCase();
       const matchesSearch = !q || (
         r.rawDescription.toLowerCase().includes(q) ||
         r.analysis?.title?.toLowerCase().includes(q) ||
         r.analysis?.summary?.toLowerCase().includes(q) ||
+        r.analysis?.suggestedDepartment?.toLowerCase().includes(q) ||
         r.analysis?.extractedLocation?.toLowerCase().includes(q) ||
         r.location?.toLowerCase().includes(q)
       );
@@ -530,7 +637,7 @@ export default function DashboardPage() {
       return matchesSearch && matchesCategory && matchesUrgency && matchesStatus;
     });
 
-    // Sort: critical first, then by date
+    // Sort: critical first, then newest
     filtered.sort((a, b) => {
       const ua = a.analysis ? urgencyOrder(a.analysis.urgency) : 5;
       const ub = b.analysis ? urgencyOrder(b.analysis.urgency) : 5;
@@ -541,38 +648,41 @@ export default function DashboardPage() {
     return filtered;
   }, [reports, searchQuery, filterCategory, filterUrgency, filterStatus]);
 
-  const hasActiveFilters = searchQuery || filterCategory || filterUrgency || filterStatus;
+  const hasActiveFilters = Boolean(searchQuery || filterCategory || filterUrgency || filterStatus);
 
   return (
     <>
-      {/* Header */}
+      {/* Compact Civic Header */}
       <header className="header">
-        <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 40, height: 40, borderRadius: 10,
-              background: 'linear-gradient(135deg, var(--teal-500), var(--navy-700))',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
-              boxShadow: '0 4px 14px rgba(20,184,166,0.35)',
-            }}>🏙️</div>
+        <div className="container header-inner">
+          <div className="brand-wrapper">
+            <div className="brand-logo" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                <path d="M11 8v6M8 11h6" />
+              </svg>
+            </div>
             <div>
-              <h1 className="font-display text-gradient" style={{ fontSize: 20, fontWeight: 800, lineHeight: 1 }}>
-                CivicLens AI
-              </h1>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Civic Operations Dashboard</p>
+              <div className="brand-title">
+                <span>CivicLens</span>
+                <span className="brand-tag">AI</span>
+              </div>
+              <div className="brand-sub">Municipal Incident Triage & Operations</div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
               id="load-sample-header-btn"
-              className="btn btn-amber btn-sm"
+              className="btn btn-secondary btn-sm"
               onClick={() => {
                 const sampleExists = reports.some((r) => r.isDemo);
                 if (!sampleExists) {
                   setReports((prev) => [...SAMPLE_REPORTS, ...prev.filter((r) => !r.isDemo)]);
-                  showToast('📌 Sample demo data loaded!');
+                  showToast('📌 Demonstration dataset loaded!');
                 } else {
-                  showToast('ℹ️ Sample data already loaded.');
+                  showToast('ℹ️ Sample data is already loaded.');
                 }
               }}
             >
@@ -589,109 +699,204 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="container" style={{ padding: '32px 24px', maxWidth: 1280 }}>
+      {/* Main Workspace */}
+      <main className="container" style={{ paddingBottom: 48, flex: 1 }}>
 
-        {/* Hero */}
-        <div style={{ marginBottom: 36, textAlign: 'center' }}>
-          <h2 className="font-display" style={{ fontSize: 32, fontWeight: 800, lineHeight: 1.2, marginBottom: 10 }}>
-            <span className="text-gradient">AI-Powered</span> Civic Intelligence
-          </h2>
-          <p style={{ fontSize: 16, color: 'var(--text-secondary)', maxWidth: 560, margin: '0 auto' }}>
-            Submit community issue reports in plain language. Gemini AI instantly classifies, prioritises, and routes each report to the right department.
-          </p>
-        </div>
+        {/* Reduced, purposeful operational header strip */}
+        <section className="operational-strip" aria-label="Incident Triage Overview">
+          <div className="operational-info">
+            <h1 className="font-display">Incident Dispatch & Operational Intelligence</h1>
+            <p>Real-time citizen reporting intake, automated Gemini classification, and municipal routing.</p>
+          </div>
+          <div className="live-pill">
+            <span className="live-indicator" />
+            <span>Triage Live</span>
+            <span style={{ color: 'var(--border-default)' }}>|</span>
+            <span style={{ color: 'var(--text-secondary)' }}>{stats.unresolved} Pending Action</span>
+          </div>
+        </section>
 
-        {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 36 }}>
-          <StatCard value={stats.total}       label="Total Reports"    icon="📋" color="var(--teal-400)" />
-          <StatCard value={stats.unresolved}  label="Unresolved"       icon="🔄" color="var(--amber-400)" />
-          <StatCard value={stats.highPriority} label="High Priority"   icon="🔴" color="#f87171" />
-          <StatCard value={stats.resolved}    label="Resolved"         icon="✅" color="#4ade80" />
-        </div>
+        {/* Summary Metrics */}
+        <section className="stats-grid" aria-label="Incident Summary Metrics">
+          <StatCard
+            value={stats.total}
+            label="Total Incidents"
+            sublabel="All logged civic records"
+            icon="📋"
+            accentColor="#38bdf8"
+          />
+          <StatCard
+            value={stats.unresolved}
+            label="Needs Action"
+            sublabel="Awaiting resolution"
+            icon="⏳"
+            accentColor="#fbbf24"
+          />
+          <StatCard
+            value={stats.highPriority}
+            label="High / Critical"
+            sublabel="Immediate triage queue"
+            icon="⚠️"
+            accentColor="#f87171"
+          />
+          <StatCard
+            value={stats.resolved}
+            label="Resolved"
+            sublabel="Completed interventions"
+            icon="✅"
+            accentColor="#34d399"
+          />
+        </section>
 
-        {/* Filters */}
-        <div className="card" style={{ marginBottom: 24, padding: 20 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr repeat(3, auto)', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        {/* Filter and Search Panel */}
+        <section className="filter-panel" aria-label="Incident Filters">
+          <div className="filter-grid">
             <div className="search-wrapper">
               <span className="search-icon">🔍</span>
               <input
                 id="search-input"
                 type="search"
                 className="search-input"
-                placeholder="Search reports by title, description, location…"
+                placeholder="Search reports by title, description, location, or department…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
 
-            <select id="filter-category" className="select" style={{ width: 160 }} value={filterCategory} onChange={(e) => setFilterCategory(e.target.value as Category | '')}>
-              <option value="">All Categories</option>
-              {(Object.keys(CATEGORY_LABELS) as Category[]).map((c) => (
-                <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
-              ))}
-            </select>
+            <div className="select-wrapper">
+              <select
+                id="filter-category"
+                className="select"
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value as Category | '')}
+              >
+                <option value="">All Categories</option>
+                {(Object.keys(CATEGORY_LABELS) as Category[]).map((c) => (
+                  <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
+                ))}
+              </select>
+              <span className="select-chevron">▼</span>
+            </div>
 
-            <select id="filter-urgency" className="select" style={{ width: 150 }} value={filterUrgency} onChange={(e) => setFilterUrgency(e.target.value as Urgency | '')}>
-              <option value="">All Urgencies</option>
-              {(['critical', 'high', 'medium', 'low'] as Urgency[]).map((u) => (
-                <option key={u} value={u}>{URGENCY_LABELS[u]}</option>
-              ))}
-            </select>
+            <div className="select-wrapper">
+              <select
+                id="filter-urgency"
+                className="select"
+                value={filterUrgency}
+                onChange={(e) => setFilterUrgency(e.target.value as Urgency | '')}
+              >
+                <option value="">All Urgencies</option>
+                {(['critical', 'high', 'medium', 'low'] as Urgency[]).map((u) => (
+                  <option key={u} value={u}>{URGENCY_LABELS[u]}</option>
+                ))}
+              </select>
+              <span className="select-chevron">▼</span>
+            </div>
 
-            <select id="filter-status" className="select" style={{ width: 170 }} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as ReportStatus | '')}>
-              <option value="">All Statuses</option>
-              {(['new', 'acknowledged', 'in_progress', 'resolved'] as ReportStatus[]).map((s) => (
-                <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-              ))}
-            </select>
+            <div className="select-wrapper">
+              <select
+                id="filter-status"
+                className="select"
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as ReportStatus | '')}
+              >
+                <option value="">All Statuses</option>
+                {(['new', 'acknowledged', 'in_progress', 'resolved'] as ReportStatus[]).map((s) => (
+                  <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+                ))}
+              </select>
+              <span className="select-chevron">▼</span>
+            </div>
           </div>
 
           {hasActiveFilters && (
-            <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                Showing {filteredReports.length} of {reports.length} reports
-              </span>
-              <button className="btn btn-ghost btn-sm" onClick={() => { setSearchQuery(''); setFilterCategory(''); setFilterUrgency(''); setFilterStatus(''); }}>
+            <div className="filter-active-bar">
+              <div className="filter-pills-list">
+                <span>Showing <strong>{filteredReports.length}</strong> of {reports.length} reports</span>
+                {searchQuery && (
+                  <span className="filter-active-pill">
+                    Query: &ldquo;{searchQuery}&rdquo;
+                  </span>
+                )}
+                {filterCategory && (
+                  <span className="filter-active-pill">
+                    {CATEGORY_LABELS[filterCategory]}
+                  </span>
+                )}
+                {filterUrgency && (
+                  <span className="filter-active-pill">
+                    {URGENCY_LABELS[filterUrgency]}
+                  </span>
+                )}
+                {filterStatus && (
+                  <span className="filter-active-pill">
+                    {STATUS_LABELS[filterStatus]}
+                  </span>
+                )}
+              </div>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setSearchQuery('');
+                  setFilterCategory('');
+                  setFilterUrgency('');
+                  setFilterStatus('');
+                }}
+              >
                 Clear filters
               </button>
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Report Grid */}
-        {!hydrated ? (
-          <div className="empty-state">
-            <div className="spinner spinner-lg" style={{ margin: '0 auto 16px' }} />
-            <p>Loading reports…</p>
-          </div>
-        ) : filteredReports.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon">📭</div>
-            <h3>{hasActiveFilters ? 'No reports match your filters' : 'No reports yet'}</h3>
-            <p style={{ marginBottom: 20 }}>
-              {hasActiveFilters ? 'Try adjusting your search or filters.' : 'Submit your first civic report or load sample data to get started.'}
-            </p>
-            {!hasActiveFilters && (
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-                <button className="btn btn-primary" onClick={() => setShowSubmit(true)}>+ Submit Report</button>
-                <button className="btn btn-amber" onClick={() => { setReports([...SAMPLE_REPORTS]); showToast('📌 Sample data loaded!'); }}>⚡ Load Sample Data</button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
-            {filteredReports.map((report) => (
-              <ReportCard
-                key={report.id}
-                report={report}
-                onClick={() => setSelectedReport(report)}
-              />
-            ))}
-          </div>
-        )}
+        {/* Reports Grid / Empty State */}
+        <section aria-label="Incident Reports Feed">
+          {!hydrated ? (
+            <div className="empty-state">
+              <div className="spinner spinner-lg" style={{ margin: '0 auto 16px' }} />
+              <p>Loading incident repository…</p>
+            </div>
+          ) : filteredReports.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">📭</div>
+              <h3>{hasActiveFilters ? 'No reports match your filters' : 'No reports yet'}</h3>
+              <p style={{ marginBottom: 20 }}>
+                {hasActiveFilters
+                  ? 'Try adjusting your search query or reset the active filter options.'
+                  : 'Submit your first civic incident report or load sample data to test AI triage.'}
+              </p>
+              {!hasActiveFilters && (
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button className="btn btn-primary" onClick={() => setShowSubmit(true)}>
+                    + Submit Report
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setReports([...SAMPLE_REPORTS]);
+                      showToast('📌 Sample data loaded!');
+                    }}
+                  >
+                    ⚡ Load Sample Data
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="reports-grid">
+              {filteredReports.map((report) => (
+                <ReportCard
+                  key={report.id}
+                  report={report}
+                  onClick={() => setSelectedReport(report)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
       </main>
 
-      {/* Submit modal */}
+      {/* Submission Form Modal */}
       {showSubmit && (
         <SubmitForm
           onSubmit={handleSubmit}
@@ -700,7 +905,7 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* Detail modal */}
+      {/* Detail Modal */}
       {selectedReport && (
         <ReportDetail
           report={selectedReport}
@@ -710,16 +915,26 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* Toast */}
+      {/* Status Toast */}
       {toastMessage && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 200,
-          background: 'var(--bg-elevated)', border: '1px solid var(--border-accent)',
-          borderRadius: 'var(--radius-md)', padding: '12px 20px',
-          fontSize: 14, fontWeight: 500, color: 'var(--text-primary)',
-          boxShadow: 'var(--shadow-card)', animation: 'fadeIn 0.25s ease',
-          maxWidth: 420,
-        }}>
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            right: 24,
+            zIndex: 200,
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border-accent)',
+            borderRadius: 'var(--radius-md)',
+            padding: '12px 18px',
+            fontSize: 13.5,
+            fontWeight: 500,
+            color: 'var(--text-primary)',
+            boxShadow: 'var(--shadow-modal)',
+            animation: 'fadeIn 0.2s ease',
+            maxWidth: 420,
+          }}
+        >
           {toastMessage}
         </div>
       )}
